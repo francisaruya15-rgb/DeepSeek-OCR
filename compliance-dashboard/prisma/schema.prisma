@@ -1,0 +1,135 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  COMPLIANCE_OFFICER
+  CLIENT
+}
+
+enum LicenseStatus {
+  ACTIVE
+  PENDING_RENEWAL
+  EXPIRED
+}
+
+enum RemittanceStatus {
+  SUBMITTED
+  PENDING
+  VERIFIED
+}
+
+enum ActionType {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  password      String
+  role          UserRole  @default(COMPLIANCE_OFFICER)
+  companyId     String?
+  company       Company?  @relation(fields: [companyId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  auditLogs     AuditLog[]
+  createdLicenses License[] @relation("CreatedBy")
+  updatedLicenses License[] @relation("UpdatedBy")
+  createdRemittances Remittance[] @relation("RemittanceCreatedBy")
+  updatedRemittances Remittance[] @relation("RemittanceUpdatedBy")
+
+  @@index([email])
+  @@index([companyId])
+}
+
+model Company {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  licenses    License[]
+  remittances Remittance[]
+  users       User[]
+
+  @@index([name])
+}
+
+model License {
+  id                String         @id @default(cuid())
+  companyId         String
+  company           Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  licenseType       String
+  issuingBody       String
+  issueDate         DateTime
+  expirationDate    DateTime
+  status            LicenseStatus  @default(ACTIVE)
+  documentPath      String?
+  notes             String?
+  createdById       String
+  createdBy         User           @relation("CreatedBy", fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?          @relation("UpdatedBy", fields: [updatedById], references: [id])
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([expirationDate])
+  @@index([licenseType])
+}
+
+model Remittance {
+  id              String            @id @default(cuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  remittanceType  String
+  period          String
+  month           Int
+  year            Int
+  amount          Float?
+  proofPath       String?
+  status          RemittanceStatus  @default(PENDING)
+  notes           String?
+  createdById     String
+  createdBy       User              @relation("RemittanceCreatedBy", fields: [createdById], references: [id])
+  updatedById     String?
+  updatedBy       User?             @relation("RemittanceUpdatedBy", fields: [updatedById], references: [id])
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([companyId])
+  @@index([status])
+  @@index([year, month])
+  @@index([remittanceType])
+}
+
+model AuditLog {
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      ActionType
+  entityType  String
+  entityId    String?
+  details     String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime   @default(now())
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
+}
